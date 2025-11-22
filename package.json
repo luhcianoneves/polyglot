@@ -4,7 +4,6 @@
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@supabase/supabase-js": "^2.39.0",
     "lucide-react": "^0.294.0",
     "vite": "^5.0.0"
   },
@@ -43,4 +42,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>,
 )
     * Ainda dentro de `src`, crie um arquivo `App.jsx` e **cole todo o código do app que eu gerei acima**.
+
 * Crie um arquivo vazio `src/index.css` (o Tailwind resolve o estilo, mas o Vite gosta desse arquivo).
