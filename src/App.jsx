@@ -214,7 +214,7 @@ export default function App() {
         <div className="p-6 pb-4 flex justify-between items-center bg-white z-10 sticky top-0 border-b border-gray-100">
           <div>
             <h1 className="text-2xl font-black tracking-tighter text-blue-600 flex items-center gap-2">
-              <Languages className="text-yellow-500" /> PolyGlot <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full font-normal">v2.0</span>
+              <Languages className="text-yellow-500" /> PolyGlot <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full font-normal">v2.1</span>
             </h1>
             <p className="text-xs text-gray-400 font-medium">Aprenda Rápido</p>
           </div>
