@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-// Importando ícones
+// Importando ícones (Adicionei o Volume2)
 import { 
   BookOpen, 
   Plus, 
@@ -11,7 +11,8 @@ import {
   Languages, 
   Save, 
   Trash2,
-  BrainCircuit
+  BrainCircuit,
+  Volume2
 } from 'lucide-react';
 
 // --- COMPONENTES UI AUXILIARES ---
@@ -37,35 +38,27 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
   );
 };
 
-// Removemos o componente 'Input' isolado para evitar erros de foco.
-// Agora usaremos HTML direto no código principal.
-
 // --- LÓGICA DO APLICATIVO ---
 
 export default function App() {
-  // Telas: 'home', 'add', 'study', 'settings'
   const [view, setView] = useState('home');
   const [loading, setLoading] = useState(false);
   const [cards, setCards] = useState([]);
   const [supabase, setSupabase] = useState(null);
   const [isSupabaseLoaded, setIsSupabaseLoaded] = useState(false);
   
-  // Estado para novo cartão
   const [newFront, setNewFront] = useState('');
   const [newBack, setNewBack] = useState('');
-  const [selectedLang, setSelectedLang] = useState('it'); // 'it' ou 'ca'
+  const [selectedLang, setSelectedLang] = useState('it'); 
 
-  // Estado do Estudo
   const [studyIndex, setStudyIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
 
-  // Configurações (Chaves do Supabase)
   const [config, setConfig] = useState({
     url: '',
     key: ''
   });
 
-  // Carregar Script do Supabase dinamicamente
   useEffect(() => {
     const script = document.createElement('script');
     script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
@@ -83,7 +76,6 @@ export default function App() {
     }
   }, []);
 
-  // Carregar configurações locais ao iniciar
   useEffect(() => {
     const savedConfig = localStorage.getItem('polyglot_config');
     const savedCards = localStorage.getItem('polyglot_local_cards');
@@ -91,7 +83,6 @@ export default function App() {
     if (savedConfig) {
       const parsed = JSON.parse(savedConfig);
       setConfig(parsed);
-      // Só tenta conectar se o script já carregou
       if (isSupabaseLoaded && parsed.url && parsed.key) {
         initSupabase(parsed.url, parsed.key);
       }
@@ -100,7 +91,6 @@ export default function App() {
     }
   }, [isSupabaseLoaded]); 
 
-  // Inicializa o cliente Supabase
   const initSupabase = (url, key) => {
     try {
       if (window.supabase && window.supabase.createClient) {
@@ -115,7 +105,6 @@ export default function App() {
     }
   };
 
-  // Busca cartões (Do Supabase ou LocalStorage)
   const fetchCards = async (client) => {
     setLoading(true);
     if (client) {
@@ -129,7 +118,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // Salvar Configurações
   const handleSaveConfig = () => {
     localStorage.setItem('polyglot_config', JSON.stringify(config));
     if (config.url && config.key) {
@@ -145,7 +133,6 @@ export default function App() {
     }
   };
 
-  // Adicionar Cartão
   const handleAddCard = async () => {
     if (!newFront || !newBack) return;
     setLoading(true);
@@ -181,7 +168,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // Deletar Cartão
   const handleDelete = async (id) => {
     if(!confirm("Deletar este cartão?")) return;
     
@@ -204,6 +190,21 @@ export default function App() {
     }
   };
 
+  // --- NOVA FUNÇÃO DE ÁUDIO ---
+  const speak = (text, lang, e) => {
+    e.stopPropagation(); // Evita virar o cartão se clicar no áudio
+    
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      // Define o sotaque correto
+      utterance.lang = lang === 'it' ? 'it-IT' : 'ca-ES'; 
+      utterance.rate = 0.9; // Um pouco mais lento para estudar
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert("Seu navegador não suporta áudio.");
+    }
+  };
+
   // --- RENDERIZAÇÃO PRINCIPAL ---
 
   return (
@@ -214,7 +215,7 @@ export default function App() {
         <div className="p-6 pb-4 flex justify-between items-center bg-white z-10 sticky top-0 border-b border-gray-100">
           <div>
             <h1 className="text-2xl font-black tracking-tighter text-blue-600 flex items-center gap-2">
-              <Languages className="text-yellow-500" /> PolyGlot <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full font-normal">v2.1</span>
+              <Languages className="text-yellow-500" /> PolyGlot <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold border border-green-200">v2.2</span>
             </h1>
             <p className="text-xs text-gray-400 font-medium">Aprenda Rápido</p>
           </div>
@@ -255,16 +256,27 @@ export default function App() {
                   <div className="space-y-3">
                     {cards.slice(0, 5).map((card, idx) => (
                       <div key={idx} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
-                        <div>
-                          <div className="font-bold text-gray-800">{card.front}</div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${card.language === 'it' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                {card.language}
+                            </span>
+                            <div className="font-bold text-gray-800">{card.front}</div>
+                          </div>
                           <div className="text-gray-500 text-sm">{card.back}</div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase ${card.language === 'it' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                            {card.language}
-                          </span>
-                          <button onClick={() => handleDelete(card.id || card.front)} className="text-gray-300 hover:text-red-500">
-                            <Trash2 size={16} />
+                        
+                        <div className="flex items-center gap-1">
+                          {/* Botão de Áudio na Home */}
+                          <button 
+                            onClick={(e) => speak(card.front, card.language, e)}
+                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                          >
+                            <Volume2 size={18} />
+                          </button>
+                          
+                          <button onClick={() => handleDelete(card.id || card.front)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors">
+                            <Trash2 size={18} />
                           </button>
                         </div>
                       </div>
@@ -291,12 +303,11 @@ export default function App() {
                   onClick={() => setSelectedLang('ca')}
                   className={`flex-1 py-3 rounded-xl font-bold transition-all ${selectedLang === 'ca' ? 'bg-yellow-400 text-yellow-900 shadow-lg' : 'bg-gray-100 text-gray-400'}`}
                 >
-                  Region Catalunha
+                  Catalão
                 </button>
               </div>
 
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
-                {/* INPUTS PUROS AGORA - SEM COMPONENTES EXTERNOS */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Em Italiano/Catalão</label>
                   <input
@@ -354,8 +365,18 @@ export default function App() {
                     className="cursor-pointer perspective-1000 group relative h-80 w-full transition-all duration-500"
                   >
                     <div className={`w-full h-full absolute rounded-3xl shadow-2xl border border-gray-100 bg-white p-8 flex flex-col items-center justify-center transition-all duration-500 backface-hidden ${isFlipped ? 'opacity-0 rotate-y-180' : 'opacity-100 rotate-y-0'}`}>
+                      
+                      {/* Botão de Áudio GRANDE no Estudo */}
+                      <button 
+                         onClick={(e) => speak(cards[studyIndex].front, cards[studyIndex].language, e)}
+                         className="mb-4 p-4 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 hover:scale-110 transition-all shadow-sm"
+                      >
+                        <Volume2 size={32} />
+                      </button>
+
                       <span className="text-4xl font-bold text-gray-800 text-center">{cards[studyIndex].front}</span>
-                      <div className="mt-4 text-blue-500 text-sm font-medium flex items-center gap-1">
+                      
+                      <div className="mt-6 text-blue-500 text-sm font-medium flex items-center gap-1">
                         <RotateCw size={14} /> Toque para virar
                       </div>
                     </div>
