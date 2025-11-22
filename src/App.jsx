@@ -14,7 +14,7 @@ import {
   BrainCircuit
 } from 'lucide-react';
 
-// --- COMPONENTES UI (Definidos FORA para não perder o foco do teclado) ---
+// --- COMPONENTES UI AUXILIARES ---
 
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false }) => {
   const baseStyle = "px-4 py-3 rounded-xl font-bold transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 shadow-sm";
@@ -37,18 +37,8 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
   );
 };
 
-const Input = ({ label, value, onChange, placeholder }) => (
-  <div className="mb-4">
-    <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">{label}</label>
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
-    />
-  </div>
-);
+// Removemos o componente 'Input' isolado para evitar erros de foco.
+// Agora usaremos HTML direto no código principal.
 
 // --- LÓGICA DO APLICATIVO ---
 
@@ -221,10 +211,10 @@ export default function App() {
       <div className="max-w-md mx-auto bg-white min-h-screen shadow-2xl flex flex-col relative overflow-hidden">
         
         {/* Top Bar */}
-        <div className="p-6 pb-4 flex justify-between items-center bg-white z-10 sticky top-0">
+        <div className="p-6 pb-4 flex justify-between items-center bg-white z-10 sticky top-0 border-b border-gray-100">
           <div>
             <h1 className="text-2xl font-black tracking-tighter text-blue-600 flex items-center gap-2">
-              <Languages className="text-yellow-500" /> PolyGlot
+              <Languages className="text-yellow-500" /> PolyGlot <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full font-normal">v2.0</span>
             </h1>
             <p className="text-xs text-gray-400 font-medium">Aprenda Rápido</p>
           </div>
@@ -306,18 +296,28 @@ export default function App() {
               </div>
 
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
-                <Input 
-                  label="Em Italiano/Catalão" 
-                  placeholder="Ex: Sviluppo" 
-                  value={newFront} 
-                  onChange={setNewFront} 
-                />
-                <Input 
-                  label="Em Português" 
-                  placeholder="Ex: Desenvolvimento" 
-                  value={newBack} 
-                  onChange={setNewBack} 
-                />
+                {/* INPUTS PUROS AGORA - SEM COMPONENTES EXTERNOS */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Em Italiano/Catalão</label>
+                  <input
+                    type="text"
+                    value={newFront}
+                    onChange={(e) => setNewFront(e.target.value)}
+                    placeholder="Ex: Sviluppo"
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
+                  />
+                </div>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Em Português</label>
+                  <input
+                    type="text"
+                    value={newBack}
+                    onChange={(e) => setNewBack(e.target.value)}
+                    placeholder="Ex: Desenvolvimento"
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
+                  />
+                </div>
               </div>
 
               <Button onClick={handleAddCard} disabled={loading} className="w-full shadow-xl">
@@ -397,18 +397,27 @@ export default function App() {
               </div>
               
               <div className="space-y-4">
-                <Input 
-                  label="Supabase Project URL" 
-                  placeholder="https://xyz.supabase.co" 
-                  value={config.url} 
-                  onChange={(val) => setConfig({...config, url: val})} 
-                />
-                <Input 
-                  label="Supabase Anon Key" 
-                  placeholder="eyJhbGciOiJIUzI1..." 
-                  value={config.key} 
-                  onChange={(val) => setConfig({...config, key: val})} 
-                />
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Supabase Project URL</label>
+                  <input
+                    type="text"
+                    value={config.url}
+                    onChange={(e) => setConfig({...config, url: e.target.value})}
+                    placeholder="https://xyz.supabase.co"
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
+                  />
+                </div>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-600 mb-1 ml-1">Supabase Anon Key</label>
+                  <input
+                    type="text"
+                    value={config.key}
+                    onChange={(e) => setConfig({...config, key: e.target.value})}
+                    placeholder="eyJhbGciOiJIUzI1..."
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-gray-50 focus:bg-white"
+                  />
+                </div>
               </div>
 
               <div className="mt-8 space-y-3">
