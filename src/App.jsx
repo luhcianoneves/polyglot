@@ -5,7 +5,7 @@ import {
   Search, Edit2, Flame, Turtle, Send, Mic, Image as ImageIcon,
   Moon, Sun, Trophy, BarChart3, Sparkles, Camera, Gamepad2,
   MessageCircle, FileText, Download, Upload, Table, History, AlertCircle,
-  LogOut
+  LogOut, ArrowLeft
 } from 'lucide-react';
 
 // --- UTILS ---
@@ -50,7 +50,7 @@ export default function App() {
   const [isSupabaseLoaded, setIsSupabaseLoaded] = useState(false);
   const [config, setConfig] = useState({ url: '', key: '', openaiKey: '' });
 
-  // Estados Temporários (Forms, Chat, Game)
+  // Estados Temporários
   const [formData, setFormData] = useState({ front: '', back: '', context: '', category: 'Geral', lang: 'it', image_url: '' });
   const [editingCard, setEditingCard] = useState(null);
   
@@ -82,7 +82,6 @@ export default function App() {
     script.onload = () => setIsSupabaseLoaded(true);
     document.body.appendChild(script);
 
-    // Load LocalStorage
     const savedConfig = localStorage.getItem('polyglot_config');
     if (savedConfig) setConfig(JSON.parse(savedConfig));
 
@@ -93,7 +92,6 @@ export default function App() {
     const savedDark = localStorage.getItem('polyglot_dark');
     if (savedDark === 'true') setDarkMode(true);
 
-    // Check Streak
     const lastStudy = localStorage.getItem('polyglot_last_study');
     const savedStreak = parseInt(localStorage.getItem('polyglot_streak') || '0');
     const today = formatDate(new Date());
@@ -137,52 +135,47 @@ export default function App() {
 
   const callOpenAI = async (endpoint, body) => {
     if (!config.openaiKey) {
-      alert("Adicione sua API Key da OpenAI nas Configurações!");
+      alert("Configure a API Key da OpenAI nos Ajustes!");
       return null;
     }
     try {
       const res = await fetch(`https://api.openai.com/v1/${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.openaiKey}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.openaiKey}` },
         body: JSON.stringify(body)
       });
-      const data = await res.json();
-      return data;
+      return await res.json();
     } catch (error) {
-      alert("Erro na OpenAI: " + error.message);
+      alert("Erro OpenAI: " + error.message);
       return null;
     }
   };
 
-  // --- FUNÇÕES RESTAURADAS (IA) ---
-  
+  // --- REGISTRO DE ATIVIDADE (HEATMAP) ---
+  const logActivity = async (count = 1) => {
+    if (supabase) {
+      // Insere no banco para o gráfico
+      await supabase.from('study_activity').insert([{ count }]);
+      // Atualiza logs locais
+      fetchData(supabase);
+    }
+  };
+
+  // --- FUNÇÕES DE IA ---
   const sendChatMessage = async () => {
     if(!chatInput.trim()) return;
     const msgs = [...chatMessages, { role: 'user', content: chatInput }];
     setChatMessages(msgs);
     setChatInput('');
     setLoading(true);
-    
-    const data = await callOpenAI('chat/completions', {
-      model: "gpt-4o-mini",
-      messages: msgs
-    });
-    
-    if (data?.choices?.[0]?.message) {
-      setChatMessages([...msgs, data.choices[0].message]);
-    }
+    const data = await callOpenAI('chat/completions', { model: "gpt-4o-mini", messages: msgs });
+    if (data?.choices?.[0]?.message) setChatMessages([...msgs, data.choices[0].message]);
     setLoading(false);
   };
 
   const explainGrammar = async (text) => {
     setLoading(true);
-    const data = await callOpenAI('chat/completions', {
-      model: "gpt-4o-mini",
-      messages: [{ role: 'user', content: `Explique a gramática desta frase em português curto: "${text}"` }]
-    });
+    const data = await callOpenAI('chat/completions', { model: "gpt-4o-mini", messages: [{ role: 'user', content: `Explique a gramática desta frase em português: "${text}"` }] });
     if (data) alert(data.choices[0].message.content);
     setLoading(false);
   };
@@ -190,10 +183,7 @@ export default function App() {
   const generateStory = async () => {
     setLoading(true);
     const words = cards.slice(0, 10).map(c => c.front).join(', ');
-    const data = await callOpenAI('chat/completions', {
-      model: "gpt-4o-mini",
-      messages: [{ role: 'user', content: `Crie uma história muito curta (50 palavras) em Italiano usando estas palavras: ${words}. Inclua tradução PT.` }]
-    });
+    const data = await callOpenAI('chat/completions', { model: "gpt-4o-mini", messages: [{ role: 'user', content: `Crie uma história muito curta (50 palavras) em Italiano usando estas palavras: ${words}.` }] });
     if (data) setAiStory(data.choices[0].message.content);
     setLoading(false);
   };
@@ -204,14 +194,13 @@ export default function App() {
     setLoading(true);
     const data = await callOpenAI('chat/completions', {
       model: "gpt-4o-mini",
-      messages: [{ role: 'user', content: `Conjugue "${verb}" em Italiano (Presente, Passado, Futuro). Retorne APENAS JSON formato: {presente: string, passado: string, futuro: string}.` }],
+      messages: [{ role: 'user', content: `Conjugue "${verb}" em Italiano (Presente, Passado, Futuro). JSON: {presente, passado, futuro}.` }],
       response_format: { type: "json_object" }
     });
     if (data) setVerbData(JSON.parse(data.choices[0].message.content));
     setLoading(false);
   };
 
-  // --- VOZ & AI ---
   const speakAI = async (text, lang) => {
     if (!config.openaiKey) {
       const u = new SpeechSynthesisUtterance(text);
@@ -231,9 +220,8 @@ export default function App() {
     } catch (e) { console.error(e); }
   };
 
-  // --- OCR & IMAGEM ---
   const generateImage = () => {
-    if (!formData.front) return alert("Digite uma palavra primeiro!");
+    if (!formData.front) return alert("Digite uma palavra!");
     setLoading(true);
     const safeText = encodeURIComponent(formData.front);
     const url = `https://image.pollinations.ai/prompt/minimalist%20illustration%20of%20${safeText}?width=400&height=400&nologo=true`;
@@ -247,11 +235,10 @@ export default function App() {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = async () => {
-      const base64 = reader.result;
       setLoading(true);
       const data = await callOpenAI('chat/completions', {
         model: "gpt-4o-mini",
-        messages: [{ role: "user", content: [{ type: "text", text: "Identifique a palavra/frase, traduza e categorize. JSON: {front, back, category}" }, { type: "image_url", image_url: { url: base64 } }] }],
+        messages: [{ role: "user", content: [{ type: "text", text: "Identifique a palavra, traduza e categorize. JSON: {front, back, category}" }, { type: "image_url", image_url: { url: reader.result } }] }],
         response_format: { type: "json_object" }
       });
       if (data) {
@@ -262,17 +249,14 @@ export default function App() {
     };
   };
 
-  // --- GAME LOGIC ---
+  // --- GAME & STUDY ---
   const startMemoryGame = () => {
     const pool = cards.length > 0 ? cards : [];
-    if (pool.length < 2) return alert("Adicione mais cartas para jogar!");
-    
+    if (pool.length < 2) return alert("Adicione mais cartas!");
     const selected = [...pool].sort(() => 0.5 - Math.random()).slice(0, 6);
-    
-    const shuffled = selected.map(c => ({ ...c, uniqueId: Math.random(), type: 'front' }))
-      .concat(selected.map(c => ({ ...c, uniqueId: Math.random(), type: 'back' })))
+    const shuffled = selected.map(c => ({ ...c, uid: Math.random(), type: 'front' }))
+      .concat(selected.map(c => ({ ...c, uid: Math.random(), type: 'back' })))
       .sort(() => 0.5 - Math.random());
-      
     setMemoryGameCards(shuffled);
     setMemoryFlipped([]);
     setMemoryMatched([]);
@@ -288,6 +272,7 @@ export default function App() {
         setMemoryMatched([...memoryMatched, card.id]);
         audioSuccess.current.play();
         addXp(5);
+        logActivity(1); // Ganha atividade no jogo
       } else {
         audioFail.current.play();
       }
@@ -295,27 +280,22 @@ export default function App() {
     }
   };
 
-  // --- CRUD HELPER ---
   const startEdit = (card) => {
     setEditingCard(card);
     setFormData({
-      front: card.front || '',
-      back: card.back || '',
-      context: card.context || '',
-      category: card.category || 'Geral',
-      lang: card.language || 'it',
-      image_url: card.image_url || ''
+      front: card.front || '', back: card.back || '', context: card.context || '',
+      category: card.category || 'Geral', lang: card.language || 'it', image_url: card.image_url || ''
     });
     setView('add');
   };
 
   const handleSaveCard = async () => {
-    if (!formData.front || !formData.back) return alert("Preencha os campos principais");
+    if (!formData.front) return alert("Preencha a palavra");
     setLoading(true);
-    const payload = { front: formData.front, back: formData.back, context: formData.context, category: formData.category, language: formData.lang, image_url: formData.image_url };
+    const payload = { ...formData };
     if (supabase) {
       if (editingCard) await supabase.from('flashcards').update(payload).match({ id: editingCard.id });
-      else { await supabase.from('flashcards').insert([payload]); addXp(10); }
+      else { await supabase.from('flashcards').insert([payload]); addXp(10); logActivity(1); }
       await fetchData(supabase);
       setView('home');
       setFormData({ front: '', back: '', context: '', category: 'Geral', lang: 'it', image_url: '' });
@@ -324,7 +304,6 @@ export default function App() {
     setLoading(false);
   };
 
-  // --- GAMIFICAÇÃO & ESTUDO ---
   const addXp = (amount) => {
     const newXp = xp + amount;
     setXp(newXp);
@@ -355,6 +334,9 @@ export default function App() {
     const card = studyQueue[studyIndex];
     if (quality >= 4) audioSuccess.current.play();
     if (quality > 0) addXp(quality * 2);
+    
+    // ATIVIDADE SALVA AQUI
+    logActivity(1); 
 
     let nextInterval = 1, nextEase = card.ease_factor || 2.5, reviewCount = (card.review_count || 0) + 1;
     if (quality === 0) { reviewCount = 0; nextInterval = 0; }
@@ -383,7 +365,7 @@ export default function App() {
         <div className="p-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border-b border-gray-100 dark:border-gray-800 sticky top-0 z-30">
            <div className="flex justify-between items-center mb-2">
              <h1 className="text-xl font-black text-blue-600 dark:text-blue-400 flex items-center gap-2">
-               <Languages className="text-yellow-500" /> PolyGlot <span className="text-[10px] bg-green-600 text-white px-2 py-1 rounded-full">v5.2</span>
+               <Languages className="text-yellow-500" /> PolyGlot <span className="text-[10px] bg-green-600 text-white px-2 py-1 rounded-full">v5.3</span>
              </h1>
              <div className="flex gap-2">
                 <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-gray-100 dark:bg-gray-800">{darkMode ? <Sun size={18} /> : <Moon size={18} />}</button>
@@ -397,10 +379,7 @@ export default function App() {
            </div>
         </div>
 
-        {/* CONTENT */}
         <div className="flex-1 overflow-y-auto p-4 pb-24 scrollbar-hide">
-          
-          {/* HOME */}
           {view === 'home' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="grid grid-cols-2 gap-3">
@@ -413,20 +392,16 @@ export default function App() {
                     <div className="text-xs text-gray-500">🇮🇹 {cards.filter(c=>c.language==='it').length} • 🟡 {cards.filter(c=>c.language==='ca').length}</div>
                  </div>
               </div>
-
-              <h3 className="font-bold text-gray-500 text-xs uppercase tracking-widest">AI Laboratory</h3>
               <div className="grid grid-cols-4 gap-2">
                  <button onClick={() => setView('chat')} className="flex flex-col items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600 dark:text-purple-400"><MessageCircle size={20}/><span className="text-[10px] mt-1">Chat</span></button>
                  <button onClick={() => setView('story')} className="flex flex-col items-center p-3 bg-pink-50 dark:bg-pink-900/20 rounded-xl text-pink-600 dark:text-pink-400"><FileText size={20}/><span className="text-[10px] mt-1">Story</span></button>
                  <button onClick={() => { setView('verbs'); setVerbData(null); }} className="flex flex-col items-center p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl text-indigo-600 dark:text-indigo-400"><Table size={20}/><span className="text-[10px] mt-1">Verbos</span></button>
                  <button onClick={startMemoryGame} className="flex flex-col items-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl text-orange-600 dark:text-orange-400"><Gamepad2 size={20}/><span className="text-[10px] mt-1">Game</span></button>
               </div>
-
               <div className="relative">
                 <Search className="absolute left-3 top-3 text-gray-400" size={18} />
                 <input type="text" placeholder="Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" />
               </div>
-
               <div className="space-y-3">
                 {cards.filter(c => c.front.toLowerCase().includes(searchTerm.toLowerCase())).map((card, idx) => (
                   <div key={idx} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm p-3 rounded-xl flex gap-3 items-center">
@@ -444,58 +419,39 @@ export default function App() {
             </div>
           )}
 
-          {/* ADD / EDIT */}
           {view === 'add' && (
             <div className="space-y-4 animate-in slide-in-from-bottom">
-              <div className="flex justify-between"><h2 className="text-xl font-bold">{editingCard ? 'Editar' : 'Novo'}</h2><button onClick={() => setView('home')}><X/></button></div>
+              <div className="flex justify-between items-center"><h2 className="text-xl font-bold">{editingCard ? 'Editar' : 'Novo'}</h2><button onClick={() => setView('home')} className="flex items-center text-gray-500 gap-1"><ArrowLeft size={18}/> Voltar</button></div>
               <div className="relative">
                  <input type="text" placeholder="Palavra (Front)" value={formData.front} onChange={e => setFormData({...formData, front: e.target.value})} className="w-full p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 outline-none" />
-                 <button onClick={generateImage} className="absolute right-2 top-2 p-2 bg-purple-100 text-purple-600 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-purple-200" disabled={loading}>
-                   <Sparkles size={14} /> {loading ? '...' : 'Gerar Imagem'}
-                 </button>
+                 <button onClick={generateImage} className="absolute right-2 top-2 p-2 bg-purple-100 text-purple-600 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-purple-200" disabled={loading}><Sparkles size={14} /> {loading ? '...' : 'Imagem'}</button>
               </div>
               {formData.image_url && (
-                <div className="relative w-full h-40 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-                  <img src={formData.image_url} className="w-full h-full object-cover" alt="Preview" />
-                  <button onClick={() => setFormData({...formData, image_url: ''})} className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full"><X size={14}/></button>
-                </div>
+                <div className="relative w-full h-40 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700"><img src={formData.image_url} className="w-full h-full object-cover" alt="Preview" /></div>
               )}
               <input type="text" placeholder="Tradução" value={formData.back} onChange={e => setFormData({...formData, back: e.target.value})} className="w-full p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 outline-none" />
               <input type="text" placeholder="Contexto" value={formData.context} onChange={e => setFormData({...formData, context: e.target.value})} className="w-full p-4 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 outline-none" />
               <Button onClick={handleSaveCard} className="w-full mt-4">Salvar</Button>
+              <Button onClick={() => setView('home')} variant="ghost" className="w-full">Cancelar</Button>
             </div>
           )}
 
-          {/* STUDY MODE */}
           {view === 'study' && studyQueue.length > 0 && (
             <div className="h-full flex flex-col">
-              {/* FIX: Botão de Voltar no topo do modo Estudo */}
               <div className="flex justify-between items-center mb-4">
                  <div className="text-xs uppercase font-bold text-gray-400">Revisão</div>
-                 <button onClick={() => setView('home')} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500"><X size={20}/></button>
+                 <button onClick={() => setView('home')} className="flex items-center text-gray-500 gap-1"><ArrowLeft size={18}/> Voltar</button>
               </div>
-
               <div className="flex-1 flex flex-col items-center justify-center relative">
                  <div className="w-full bg-white dark:bg-gray-800 rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-700 relative min-h-[400px] flex flex-col">
-                    {studyQueue[studyIndex].image_url && (
-                      <div className="h-40 w-full bg-gray-100 dark:bg-gray-700 relative">
-                        <img src={studyQueue[studyIndex].image_url} className="w-full h-full object-cover" />
-                      </div>
-                    )}
+                    {studyQueue[studyIndex].image_url && (<div className="h-40 w-full bg-gray-100 dark:bg-gray-700 relative"><img src={studyQueue[studyIndex].image_url} className="w-full h-full object-cover" /></div>)}
                     <div className="p-6 flex-1 flex flex-col items-center text-center">
                        <div className="text-4xl font-black text-gray-800 dark:text-white mb-6">{studyQueue[studyIndex].front}</div>
-                       <div className="flex gap-4 mb-6">
-                          <button onClick={() => speakAI(studyQueue[studyIndex].front, studyQueue[studyIndex].language)} className="p-3 rounded-full bg-blue-500 text-white shadow-lg"><Volume2 size={24}/></button>
-                       </div>
+                       <div className="flex gap-4 mb-6"><button onClick={() => speakAI(studyQueue[studyIndex].front, studyQueue[studyIndex].language)} className="p-3 rounded-full bg-blue-500 text-white shadow-lg"><Volume2 size={24}/></button></div>
                        {!isFlipped ? (
-                         <div className="w-full relative mt-auto">
-                            <input type="text" placeholder="Escreva..." className="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-xl outline-none text-center dark:text-white" value={typedAnswer} onChange={e => setTypedAnswer(e.target.value)} onKeyDown={e => e.key === 'Enter' && checkAnswer()} />
-                         </div>
+                         <div className="w-full relative mt-auto"><input type="text" placeholder="Escreva..." className="w-full p-3 bg-gray-50 dark:bg-gray-700 rounded-xl outline-none text-center dark:text-white" value={typedAnswer} onChange={e => setTypedAnswer(e.target.value)} onKeyDown={e => e.key === 'Enter' && checkAnswer()} /></div>
                        ) : (
-                         <div className="w-full mt-auto">
-                            <div className="text-2xl font-bold text-gray-700 dark:text-gray-300 border-t dark:border-gray-700 pt-4">{studyQueue[studyIndex].back}</div>
-                            {studyQueue[studyIndex].context && <div className="text-sm italic text-gray-500 mt-2">"{studyQueue[studyIndex].context}"</div>}
-                         </div>
+                         <div className="w-full mt-auto"><div className="text-2xl font-bold text-gray-700 dark:text-gray-300 border-t dark:border-gray-700 pt-4">{studyQueue[studyIndex].back}</div>{studyQueue[studyIndex].context && <div className="text-sm italic text-gray-500 mt-2">"{studyQueue[studyIndex].context}"</div>}</div>
                        )}
                     </div>
                  </div>
@@ -511,10 +467,9 @@ export default function App() {
             </div>
           )}
 
-          {/* HANDS FREE */}
           {view === 'handsfree' && (
             <div className="h-full flex flex-col items-center justify-center space-y-8 text-center relative">
-               <button onClick={()=>setView('home')} className="absolute top-0 right-0 p-2 text-gray-400"><X/></button>
+               <button onClick={()=>setView('home')} className="absolute top-0 right-0 p-4 text-gray-400 flex items-center gap-1"><ArrowLeft size={18}/> Voltar</button>
                <div className="animate-pulse p-8 bg-blue-100 dark:bg-blue-900/30 rounded-full text-blue-600"><Volume2 size={64}/></div>
                <h2 className="text-2xl font-bold">Modo Hands-Free</h2>
                <p className="text-gray-500">Ouvindo e repetindo suas palavras...</p>
@@ -522,31 +477,23 @@ export default function App() {
             </div>
           )}
 
-          {/* MEMORY GAME */}
           {view === 'game' && (
              <div className="space-y-4 h-full flex flex-col">
-                <div className="flex justify-between"><h2 className="font-bold">Memória</h2><button onClick={()=>setView('home')}><X/></button></div>
+                <div className="flex justify-between"><h2 className="font-bold">Memória</h2><button onClick={()=>setView('home')} className="flex items-center text-gray-500 gap-1"><ArrowLeft size={18}/> Voltar</button></div>
                 <div className="grid grid-cols-3 gap-2 flex-1 content-start">
                    {memoryGameCards.map((card, i) => (
-                      <div key={i} onClick={() => handleMemoryClick(card)} 
-                           className={`aspect-square rounded-xl flex items-center justify-center text-center text-xs p-1 cursor-pointer transition-all duration-300 ${
-                              memoryFlipped.includes(card) || memoryMatched.includes(card.id) 
-                              ? 'bg-blue-600 text-white rotate-y-180' 
-                              : 'bg-blue-100 dark:bg-gray-800 text-transparent'
-                           }`}>
-                           {(memoryFlipped.includes(card) || memoryMatched.includes(card.id)) && (card.type === 'front' ? card.front : card.back)}
-                      </div>
+                      <div key={i} onClick={() => handleMemoryClick(card)} className={`aspect-square rounded-xl flex items-center justify-center text-center text-xs p-1 cursor-pointer transition-all duration-300 ${memoryFlipped.includes(card) || memoryMatched.includes(card.id) ? 'bg-blue-600 text-white rotate-y-180' : 'bg-blue-100 dark:bg-gray-800 text-transparent'}`}>{(memoryFlipped.includes(card) || memoryMatched.includes(card.id)) && (card.type === 'front' ? card.front : card.back)}</div>
                    ))}
                 </div>
+                <Button onClick={()=>setView('home')} variant="ghost" className="w-full">Sair do Jogo</Button>
              </div>
           )}
 
-          {/* CHAT, STORY, VERBS, SETTINGS, DASHBOARD */}
           {(view === 'chat' || view === 'story' || view === 'verbs' || view === 'settings' || view === 'dashboard') && (
              <div className="h-full flex flex-col">
                <div className="flex justify-between items-center mb-4">
                  <h2 className="font-bold capitalize">{view === 'dashboard' ? 'Perfil' : view}</h2>
-                 <button onClick={()=>setView('home')}><X/></button>
+                 <button onClick={()=>setView('home')} className="flex items-center text-gray-500 gap-1"><ArrowLeft size={18}/> Voltar</button>
                </div>
                
                {view === 'chat' && (
@@ -563,10 +510,9 @@ export default function App() {
 
                {view === 'story' && (
                  <>
-                   <div className="p-6 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800 text-lg font-serif leading-relaxed">
-                      {aiStory || "Clique abaixo para gerar uma história..."}
-                   </div>
+                   <div className="p-6 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800 text-lg font-serif leading-relaxed">{aiStory || "Clique abaixo para gerar uma história..."}</div>
                    <Button onClick={generateStory} disabled={loading} variant="warning" className="w-full mt-4"><Sparkles size={18}/> Gerar História</Button>
+                   <Button onClick={()=>setView('home')} variant="ghost" className="w-full mt-2">Voltar</Button>
                  </>
                )}
 
@@ -577,8 +523,14 @@ export default function App() {
                         <div className="grid grid-cols-3 bg-gray-100 dark:bg-gray-700 p-2 font-bold text-xs uppercase"><div>Passado</div><div>Presente</div><div>Futuro</div></div>
                         <div className="grid grid-cols-3 p-4 text-sm gap-4"><div>{verbData.passado}</div><div className="font-bold text-blue-600">{verbData.presente}</div><div>{verbData.futuro}</div></div>
                      </div>
-                   ) : <div className="text-center py-10 text-gray-400">Carregando...</div>}
-                   <Button onClick={conjugateVerb} variant="secondary" className="w-full">Conjugador</Button>
+                   ) : (
+                     <div className="text-center py-10 text-gray-400 space-y-2">
+                       <Table size={48} className="mx-auto opacity-20"/>
+                       <p>Clique abaixo para conjugar um verbo novo.</p>
+                     </div>
+                   )}
+                   <Button onClick={conjugateVerb} variant="secondary" className="w-full">Conjugador de Verbos</Button>
+                   <Button onClick={()=>setView('home')} variant="ghost" className="w-full mt-2">Voltar</Button>
                  </>
                )}
 
@@ -590,6 +542,7 @@ export default function App() {
                    <label className="text-xs font-bold text-green-600 uppercase flex items-center gap-1"><Sparkles size={12}/> OpenAI Key</label>
                    <input type="password" placeholder="sk-..." value={config.openaiKey} onChange={e => setConfig({...config, openaiKey: e.target.value})} className="w-full p-2 rounded border-green-200 dark:bg-gray-700 dark:text-white text-sm" />
                    <Button onClick={() => { localStorage.setItem('polyglot_config', JSON.stringify(config)); window.location.reload(); }} className="w-full mt-2">Salvar Tudo</Button>
+                   <Button onClick={()=>setView('home')} variant="ghost" className="w-full mt-2">Voltar</Button>
                  </div>
                )}
 
@@ -603,31 +556,25 @@ export default function App() {
                            const dayStr = formatDate(day);
                            const act = activityLog.find(a => new Date(a.created_at).toISOString().split('T')[0] === dayStr);
                            const height = act ? Math.min(100, act.count * 5) : 5;
-                           return <div key={i} className="w-8 bg-blue-100 dark:bg-gray-700 rounded-t-lg relative group"><div className="absolute bottom-0 w-full bg-blue-500 rounded-t-lg" style={{ height: `${height}%` }}></div></div>
+                           return <div key={i} className="w-8 bg-blue-100 dark:bg-gray-700 rounded-t-lg relative group"><div className="absolute bottom-0 w-full bg-blue-500 rounded-t-lg" style={{ height: `${height}%` }}></div><div className="absolute -bottom-5 text-[9px] text-gray-400 w-full text-center">{day.getDate()}</div></div>
                         })}
                      </div>
                    </div>
-                   <Button onClick={exportData} variant="secondary" className="w-full"><Download size={18}/> Backup</Button>
+                   <Button onClick={()=>setView('home')} variant="ghost" className="w-full mt-2">Voltar ao Início</Button>
                  </>
                )}
              </div>
           )}
-
         </div>
 
         {/* FAB */}
         {view === 'home' && (
            <div className="absolute bottom-6 right-6 flex flex-col gap-4">
              <button onClick={() => setView('handsfree')} className="bg-gray-800 text-white p-3 rounded-full shadow-lg"><Volume2/></button>
-             <button onClick={() => startSession('review')} className="bg-blue-600 text-white p-4 rounded-full shadow-2xl hover:scale-105 transition-all flex items-center gap-2 pr-6">
-               <BrainCircuit size={24} /> <span className="font-bold">Estudar</span>
-             </button>
-             <button onClick={() => { setEditingCard(null); setFormData({ front: '', back: '', context: '', category: 'Geral', lang: 'it', image_url: '' }); setView('add'); }} className="bg-white text-blue-600 border border-blue-100 p-4 rounded-full shadow-xl hover:scale-105 transition-all self-end">
-               <Plus size={24} />
-             </button>
+             <button onClick={() => startSession('review')} className="bg-blue-600 text-white p-4 rounded-full shadow-2xl hover:scale-105 transition-all flex items-center gap-2 pr-6"><BrainCircuit size={24} /> <span className="font-bold">Estudar</span></button>
+             <button onClick={() => { setEditingCard(null); setFormData({ front: '', back: '', context: '', category: 'Geral', lang: 'it', image_url: '' }); setView('add'); }} className="bg-white text-blue-600 border border-blue-100 p-4 rounded-full shadow-xl hover:scale-105 transition-all self-end"><Plus size={24} /></button>
            </div>
         )}
-
       </div>
     </div>
   );
