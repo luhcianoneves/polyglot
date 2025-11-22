@@ -157,6 +157,60 @@ export default function App() {
     }
   };
 
+  // --- FUNÇÕES RESTAURADAS (IA) ---
+  
+  const sendChatMessage = async () => {
+    if(!chatInput.trim()) return;
+    const msgs = [...chatMessages, { role: 'user', content: chatInput }];
+    setChatMessages(msgs);
+    setChatInput('');
+    setLoading(true);
+    
+    const data = await callOpenAI('chat/completions', {
+      model: "gpt-4o-mini",
+      messages: msgs
+    });
+    
+    if (data?.choices?.[0]?.message) {
+      setChatMessages([...msgs, data.choices[0].message]);
+    }
+    setLoading(false);
+  };
+
+  const explainGrammar = async (text) => {
+    setLoading(true);
+    const data = await callOpenAI('chat/completions', {
+      model: "gpt-4o-mini",
+      messages: [{ role: 'user', content: `Explique a gramática desta frase em português curto: "${text}"` }]
+    });
+    if (data) alert(data.choices[0].message.content);
+    setLoading(false);
+  };
+
+  const generateStory = async () => {
+    setLoading(true);
+    const words = cards.slice(0, 10).map(c => c.front).join(', ');
+    const data = await callOpenAI('chat/completions', {
+      model: "gpt-4o-mini",
+      messages: [{ role: 'user', content: `Crie uma história muito curta (50 palavras) em Italiano usando estas palavras: ${words}. Inclua tradução PT.` }]
+    });
+    if (data) setAiStory(data.choices[0].message.content);
+    setLoading(false);
+  };
+
+  const conjugateVerb = async () => {
+    const verb = prompt("Digite o verbo (ex: Essere):");
+    if (!verb) return;
+    setLoading(true);
+    const data = await callOpenAI('chat/completions', {
+      model: "gpt-4o-mini",
+      messages: [{ role: 'user', content: `Conjugue "${verb}" em Italiano (Presente, Passado, Futuro). Retorne APENAS JSON formato: {presente: string, passado: string, futuro: string}.` }],
+      response_format: { type: "json_object" }
+    });
+    if (data) setVerbData(JSON.parse(data.choices[0].message.content));
+    setLoading(false);
+  };
+
   // --- VOZ & AI ---
   const speakAI = async (text, lang) => {
     if (!config.openaiKey) {
@@ -181,7 +235,6 @@ export default function App() {
   const generateImage = () => {
     if (!formData.front) return alert("Digite uma palavra primeiro!");
     setLoading(true);
-    // FIX: Adicionado encodeURIComponent para evitar erros com espaços e acentos
     const safeText = encodeURIComponent(formData.front);
     const url = `https://image.pollinations.ai/prompt/minimalist%20illustration%20of%20${safeText}?width=400&height=400&nologo=true`;
     setFormData({...formData, image_url: url});
@@ -211,7 +264,6 @@ export default function App() {
 
   // --- GAME LOGIC ---
   const startMemoryGame = () => {
-    // FIX: Embaralha TODAS as cartas antes de pegar 6, garantindo variedade
     const pool = cards.length > 0 ? cards : [];
     if (pool.length < 2) return alert("Adicione mais cartas para jogar!");
     
@@ -244,7 +296,6 @@ export default function App() {
   };
 
   // --- CRUD HELPER ---
-  // FIX: Proteção contra valores nulos ao editar
   const startEdit = (card) => {
     setEditingCard(card);
     setFormData({
@@ -332,7 +383,7 @@ export default function App() {
         <div className="p-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm border-b border-gray-100 dark:border-gray-800 sticky top-0 z-30">
            <div className="flex justify-between items-center mb-2">
              <h1 className="text-xl font-black text-blue-600 dark:text-blue-400 flex items-center gap-2">
-               <Languages className="text-yellow-500" /> PolyGlot <span className="text-[10px] bg-purple-600 text-white px-2 py-1 rounded-full">v5.1</span>
+               <Languages className="text-yellow-500" /> PolyGlot <span className="text-[10px] bg-green-600 text-white px-2 py-1 rounded-full">v5.2</span>
              </h1>
              <div className="flex gap-2">
                 <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-full bg-gray-100 dark:bg-gray-800">{darkMode ? <Sun size={18} /> : <Moon size={18} />}</button>
